@@ -30,7 +30,7 @@ export async function createRoom(roomId: string, title: string): Promise<{ hostS
     createdAt: serverTimestamp(),
     hostSecret,
     status: "lobby",
-    title: safeTrim(title || "Trivia Night", 60),
+    title: safeTrim(title || "Cracked Trivia", 60),
     questions: defaultQuestions(),
     currentIndex: 0,
     revealed: false,
@@ -177,6 +177,31 @@ export async function judgeFinal(roomId: string, hostSecret: string, playerId: s
 
     tx.update(playerRef, { score: (p.score ?? 0) + delta });
     tx.update(ansRef, { judged: correct, pointsDelta: delta });
+  });
+}
+
+export async function resetAllScores(roomId: string, hostSecret: string): Promise<void> {
+  const roomRef = doc(db, "rooms", roomId);
+  
+  // First verify host and get all players
+  const roomSnap = await getDoc(roomRef);
+  const room = roomSnap.data() as Room | undefined;
+  if (!room) throw new Error("Room not found");
+  if (room.hostSecret !== hostSecret) throw new Error("Not host");
+
+  // Get all player references
+  const playersSnap = await getDocs(query(collection(db, "rooms", roomId, "players"), orderBy("joinedAt", "asc")));
+  const playerRefs = playersSnap.docs.map(d => d.ref);
+
+  // Update all players in a transaction
+  await runTransaction(db, async (tx) => {
+    const roomSnap2 = await tx.get(roomRef);
+    const room2 = roomSnap2.data() as Room | undefined;
+    if (!room2 || room2.hostSecret !== hostSecret) throw new Error("Not host");
+
+    for (const playerRef of playerRefs) {
+      tx.update(playerRef, { score: 0 });
+    }
   });
 }
 

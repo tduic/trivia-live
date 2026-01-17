@@ -7,7 +7,7 @@ import { createRoom } from "@/lib/room";
 
 export default function HomePage() {
   const router = useRouter();
-  const [title, setTitle] = useState("Trivia Night");
+  const [title, setTitle] = useState("Cracked Trivia");
   const [joinCode, setJoinCode] = useState("");
 
   return (

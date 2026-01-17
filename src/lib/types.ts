@@ -17,6 +17,7 @@ export type Room = {
   currentIndex: number; // 0-9
   revealed: boolean;
   acceptingAnswers: boolean;
+  revealedAt?: any; // timestamp when question was revealed
 
   // Final Jeopardy
   final: {

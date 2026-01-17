@@ -8,6 +8,7 @@ import {
   judgeFinal,
   judgeSubmission,
   patchRoomIfHost,
+  resetAllScores,
   submitAnswer,
   submitFinalAnswer,
   submitWager,
@@ -49,6 +50,7 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   const playerId = useLocalId(`trivia_player_${roomId}`);
   const [playerName, setPlayerName] = useState<string>("");
   const [joined, setJoined] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   useEffect(() => subscribeRoom(roomId, setRoom), [roomId]);
   useEffect(() => subscribePlayers(roomId, setPlayers), [roomId]);
@@ -60,6 +62,27 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
   useEffect(() => subscribeFinalAnswers(roomId, setFinalAnswers), [roomId]);
 
   const isHost = useMemo(() => !!room && hostSecret && room.hostSecret === hostSecret, [room, hostSecret]);
+
+  // Timer effect: auto-close answers after 30 seconds
+  useEffect(() => {
+    if (!room || !room.revealed || !room.acceptingAnswers || !room.revealedAt) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const revealTime = room.revealedAt.toMillis ? room.revealedAt.toMillis() : room.revealedAt;
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - revealTime;
+      const remaining = Math.max(0, 30 - Math.floor(elapsed / 1000));
+      setTimeRemaining(remaining);
+
+      if (remaining === 0 && room.acceptingAnswers && isHost) {
+        patchRoomIfHost(roomId, hostSecret, { acceptingAnswers: false });
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [room, roomId, hostSecret, isHost]);
 
   const me = useMemo(() => players.find((p) => p.id === playerId) ?? null, [players, playerId]);
   const currentQ = useMemo(() => room?.questions?.[room?.currentIndex ?? 0] ?? null, [room]);
@@ -86,6 +109,11 @@ export default function RoomPage({ params }: { params: { roomId: string } }) {
           </div>
           <div className="small">
             Status: {room.status} • Q{room.currentIndex + 1}/10
+            {timeRemaining !== null && timeRemaining > 0 && (
+              <span style={{ marginLeft: 8, fontWeight: 700, color: timeRemaining <= 10 ? "#ff6b6b" : "#4ecdc4" }}>
+                ⏱ {timeRemaining}s
+              </span>
+            )}
           </div>
           <div className="small">Mode: {isHost ? "HOST" : "PLAYER"}</div>
         </div>
@@ -175,19 +203,12 @@ function HostView({
     }
   }
 
-  async function replaceQuestion(idx: number) {
-    setBusy(true);
+  async function resetScores() {
+    if (!confirm("Reset all player scores to 0?")) return;
     try {
-      const res = await fetch("/api/replace", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ index: idx, isFinal: idx === 9 })
-      });
-      const data = await res.json();
-      const next = room.questions.map((qq, i) => (i === idx ? data.question : qq));
-      await patchRoomIfHost(roomId, hostSecret, { questions: next });
-    } finally {
-      setBusy(false);
+      await resetAllScores(roomId, hostSecret);
+    } catch (err) {
+      alert(`Error resetting scores: ${err}`);
     }
   }
 
@@ -209,6 +230,9 @@ function HostView({
           <div className="row">
             <button className="btn" disabled={busy} onClick={generateGame}>
               Generate Game (10)
+            </button>
+            <button className="btn" disabled={busy} onClick={resetScores}>
+              Reset Scores
             </button>
           </div>
         </div>
@@ -242,28 +266,69 @@ function HostView({
         <div className="hr" />
 
         <div className="grid" style={{ gap: 10 }}>
-          <div className="small">Category (optional)</div>
-          <input className="input" value={q.category ?? ""} onChange={(e) => updateQField(room.currentIndex, "category", e.target.value)} />
-
-          <div className="small">Question</div>
-          <textarea rows={3} value={q.question} onChange={(e) => updateQField(room.currentIndex, "question", e.target.value)} />
-
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <div className="small">Answer (host only)</div>
-            <button className="btn btnSecondary" disabled={busy} onClick={() => replaceQuestion(room.currentIndex)}>
-              Replace with GPT
-            </button>
+          <div className="h3">All Questions</div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #444" }}>
+                  <th style={{ textAlign: "left", padding: "8px", fontWeight: 600 }}>Q</th>
+                  <th style={{ textAlign: "left", padding: "8px", fontWeight: 600 }}>Question</th>
+                  <th style={{ textAlign: "left", padding: "8px", fontWeight: 600 }}>Answer</th>
+                  <th style={{ textAlign: "left", padding: "8px", fontWeight: 600 }}>Category</th>
+                  <th style={{ textAlign: "center", padding: "8px", fontWeight: 600 }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {room.questions.map((question, idx) => (
+                  <tr
+                    key={idx}
+                    style={{
+                      borderBottom: "1px solid #333",
+                      backgroundColor: idx === room.currentIndex ? "#1e2749" : "transparent"
+                    }}
+                  >
+                    <td style={{ padding: "8px", minWidth: 40, fontWeight: 600, cursor: "pointer" }} onClick={() => patchRoomIfHost(roomId, hostSecret, { currentIndex: idx, revealed: false, acceptingAnswers: false })}>
+                      {idx + 1}
+                    </td>
+                    <td style={{ padding: "8px", maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => patchRoomIfHost(roomId, hostSecret, { currentIndex: idx, revealed: false, acceptingAnswers: false })}>
+                      {question.question || "(empty)"}
+                    </td>
+                    <td style={{ padding: "8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer" }} onClick={() => patchRoomIfHost(roomId, hostSecret, { currentIndex: idx, revealed: false, acceptingAnswers: false })}>
+                      <span className="mono">{question.answer || "(empty)"}</span>
+                    </td>
+                    <td style={{ padding: "8px", minWidth: 100, cursor: "pointer" }} onClick={() => patchRoomIfHost(roomId, hostSecret, { currentIndex: idx, revealed: false, acceptingAnswers: false })}>
+                      {question.category || "(none)"}
+                    </td>
+                    <td style={{ padding: "8px", textAlign: "center" }}>
+                      <button
+                        className="btn btnSecondary"
+                        style={{ fontSize: 12, padding: "4px 8px" }}
+                        disabled={busy}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          replaceQuestion(idx);
+                        }}
+                      >
+                        Replace
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <textarea rows={2} value={q.answer} onChange={(e) => updateQField(room.currentIndex, "answer", e.target.value)} />
+        </div>
 
-          <div className="row">
+        <div className="hr" />
+
+        <div className="row">
             {nonFinal ? (
               <>
                 <button
                   className="btn"
-                  onClick={() => patchRoomIfHost(roomId, hostSecret, { status: "question", revealed: true, acceptingAnswers: true })}
+                  onClick={() => patchRoomIfHost(roomId, hostSecret, { status: "question", revealed: true, acceptingAnswers: true, revealedAt: new Date() })}
                 >
-                  Reveal + Open Answers
+                  Reveal + Open Answers (30s)
                 </button>
                 <button
                   className="btn btnSecondary"
@@ -288,20 +353,15 @@ function HostView({
                 </button>
                 <button
                   className="btn btnSecondary"
-                  onClick={() => patchRoomIfHost(roomId, hostSecret, { status: "final_answer", final: { ...room.final, wagersOpen: false, answersOpen: true } })}
+                  onClick={() => patchRoomIfHost(roomId, hostSecret, { status: "final_answer", revealedAt: new Date(), acceptingAnswers: true, final: { ...room.final, wagersOpen: false, answersOpen: true } })}
                 >
-                  Open Final Answers
-                </button>
-                <button
-                  className="btn btnSecondary"
-                  onClick={() => patchRoomIfHost(roomId, hostSecret, { final: { ...room.final, revealedAnswer: !room.final.revealedAnswer } })}
-                >
-                  {room.final.revealedAnswer ? "Hide" : "Reveal"} Final Answer
+                  Open Final Answers (30s)
                 </button>
               </>
             )}
           </div>
-        </div>
+
+        <div className="hr" />
       </div>
 
       {nonFinal ? (
@@ -310,23 +370,43 @@ function HostView({
           <div className="small">Tap Correct/Incorrect to score +1 (or 0). Each player can submit once per question.</div>
           <div className="hr" />
 
-          <div className="grid" style={{ gap: 10 }}>
+          <div className="grid" style={{ gap: 6 }}>
             {subs.length === 0 ? <div className="small">No answers yet.</div> : null}
             {subs.map((s) => (
-              <div key={s.id} className="card" style={{ background: "#0c1323" }}>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <div style={{ fontWeight: 700 }}>{s.playerName}</div>
-                  <div className="pill small">{s.judged === null ? "Unjudged" : s.judged ? "+1" : "0"}</div>
+              <div key={s.id} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "8px 12px",
+                background: "#0c1323",
+                borderRadius: 6,
+                fontSize: 14
+              }}>
+                <div style={{ fontWeight: 600, minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.playerName}
                 </div>
-                <div style={{ marginTop: 6 }}>{s.answer || <span className="small">(blank)</span>}</div>
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button className="btn" disabled={s.judged !== null} onClick={() => judgeSubmission(roomId, hostSecret, s.id, True)}>
-                    Correct
-                  </button>
-                  <button className="btn btnSecondary" disabled={s.judged !== null} onClick={() => judgeSubmission(roomId, hostSecret, s.id, False)}>
-                    Incorrect
-                  </button>
+                <div style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {s.answer || <span style={{ opacity: 0.5 }}>(blank)</span>}
                 </div>
+                <div className="pill small" style={{ minWidth: 60, textAlign: "center" }}>
+                  {s.judged === null ? "?" : s.judged ? "+1" : "0"}
+                </div>
+                <button
+                  className="btn"
+                  style={{ fontSize: 12, padding: "4px 12px", minWidth: 70 }}
+                  disabled={s.judged !== null}
+                  onClick={() => judgeSubmission(roomId, hostSecret, s.id, true)}
+                >
+                  ✓
+                </button>
+                <button
+                  className="btn btnSecondary"
+                  style={{ fontSize: 12, padding: "4px 12px", minWidth: 70 }}
+                  disabled={s.judged !== null}
+                  onClick={() => judgeSubmission(roomId, hostSecret, s.id, false)}
+                >
+                  ✗
+                </button>
               </div>
             ))}
           </div>
@@ -358,38 +438,52 @@ function HostView({
             <div className="small">Score +wager if correct, -wager if incorrect.</div>
             <div className="hr" />
 
-            <div className="grid" style={{ gap: 10 }}>
+            <div className="grid" style={{ gap: 6 }}>
               {finalAnswers.length === 0 ? <div className="small">No final answers yet.</div> : null}
               {finalAnswers.map((a) => {
                 const w = wagers.find((x) => x.playerId === a.playerId);
                 return (
-                  <div key={a.playerId} className="card" style={{ background: "#0c1323" }}>
-                    <div className="row" style={{ justifyContent: "space-between" }}>
-                      <div style={{ fontWeight: 700 }}>{a.playerName}</div>
-                      <div className="pill small">
-                        wager {w ? w.wager : 0} • {a.judged === null ? "Unjudged" : a.judged ? `+${a.pointsDelta}` : `${a.pointsDelta}`}
-                      </div>
+                  <div key={a.playerId} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "8px 12px",
+                    background: "#0c1323",
+                    borderRadius: 6,
+                    fontSize: 14
+                  }}>
+                    <div style={{ fontWeight: 600, minWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {a.playerName}
                     </div>
-                    <div style={{ marginTop: 6 }}>{a.answer || <span className="small">(blank)</span>}</div>
-                    <div className="row" style={{ marginTop: 10 }}>
-                      <button className="btn" disabled={a.judged !== null} onClick={() => judgeFinal(roomId, hostSecret, a.playerId, true)}>
-                        Correct
-                      </button>
-                      <button className="btn btnSecondary" disabled={a.judged !== null} onClick={() => judgeFinal(roomId, hostSecret, a.playerId, false)}>
-                        Incorrect
-                      </button>
+                    <div style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {a.answer || <span style={{ opacity: 0.5 }}>(blank)</span>}
                     </div>
+                    <div className="pill small" style={{ minWidth: 80, textAlign: "center", whiteSpace: "nowrap" }}>
+                      w{w ? w.wager : 0} • {a.judged === null ? "?" : a.judged ? `+${a.pointsDelta}` : `${a.pointsDelta}`}
+                    </div>
+                    <button
+                      className="btn"
+                      style={{ fontSize: 12, padding: "4px 12px", minWidth: 70 }}
+                      disabled={a.judged !== null}
+                      onClick={() => judgeFinal(roomId, hostSecret, a.playerId, true)}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      className="btn btnSecondary"
+                      style={{ fontSize: 12, padding: "4px 12px", minWidth: 70 }}
+                      disabled={a.judged !== null}
+                      onClick={() => judgeFinal(roomId, hostSecret, a.playerId, false)}
+                    >
+                      ✗
+                    </button>
                   </div>
                 );
               })}
             </div>
 
             <div className="hr" />
-            {room.final.revealedAnswer ? (
-              <div className="small">Final answer key (host): <span className="mono">{q.answer || "(not set)"}</span></div>
-            ) : (
-              <div className="small">Final answer key is hidden.</div>
-            )}
+            <div className="small">Final answer key (host): <span className="mono">{q.answer || "(not set)"}</span></div>
           </div>
         </div>
       )}
