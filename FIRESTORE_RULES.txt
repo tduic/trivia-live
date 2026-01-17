@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if true;
+      // Host-only updates to the room doc (question reveal/advance, editing questions)
+      allow update, delete: if request.resource.data.hostSecret == resource.data.hostSecret;
+
+      // Players & submissions (party-game permissive). For tighter security, enable Firebase Auth (anonymous)
+      // and restrict writes by request.auth.uid.
+      match /players/{playerId} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+      match /submissions/{id} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+      match /wagers/{id} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+      match /finalAnswers/{id} {
+        allow read: if true;
+        allow create, update: if true;
+        allow delete: if false;
+      }
+    }
+  }
+}
