@@ -34,13 +34,13 @@ ${avoid.map((q: string) => `- ${q}`).join("\n")}
 Return ONLY valid JSON with this exact shape:
 { "question": { "question": "...", "answer": "...", "category": "..." } }`;
 
-  const response = await client.responses.create({
-    model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-    input: prompt,
-    max_output_tokens: 250
+  const response = await client.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 250
   });
 
-  const text = response.output_text;
+  const text = response.choices[0]?.message?.content || "";
   try {
     const data = extractJson(text);
     if (!data?.question?.question || !data?.question?.answer) throw new Error("Bad shape");

@@ -717,6 +717,15 @@ function HostView({
             <button className="btn" disabled={busy} onClick={resetScores}>
               Reset Scores
             </button>
+            <button
+              className="btn btnSecondary"
+              onClick={() => {
+                if (!confirm("Return to lobby? You will leave this game room.")) return;
+                window.location.href = '/';
+              }}
+            >
+              Back to Lobby
+            </button>
           </div>
         </div>
 
