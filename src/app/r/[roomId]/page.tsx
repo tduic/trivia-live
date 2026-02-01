@@ -1467,7 +1467,10 @@ function PlayerView({
   allSubs: Submission[];
   timeRemaining: number | null;
 }) {
-  const [answer, setAnswer] = useState("");
+  // Separate answer states for each mode to prevent text bleeding
+  const [regularAnswer, setRegularAnswer] = useState("");
+  const [finalAnswer, setFinalAnswer] = useState("");
+  const [suddenDeathAnswer, setSuddenDeathAnswer] = useState("");
   const [wager, setWager] = useState<number>(0);
   const [submitted, setSubmitted] = useState(false);
 
@@ -1475,11 +1478,26 @@ function PlayerView({
     if (me) setJoined(true);
   }, [me, setJoined]);
 
-  // Reset submitted state when question changes
+  // Reset regular answer state when question changes
   useEffect(() => {
     setSubmitted(false);
-    setAnswer("");
+    setRegularAnswer("");
   }, [room.currentIndex]);
+
+  // Reset final answer state when final round resets
+  useEffect(() => {
+    if (!room.final.wagersOpen && !room.final.answersOpen) {
+      setFinalAnswer("");
+      setWager(0);
+    }
+  }, [room.final.wagersOpen, room.final.answersOpen]);
+
+  // Reset sudden death answer when sudden death ends or starts fresh
+  useEffect(() => {
+    if (!room.suddenDeath?.active) {
+      setSuddenDeathAnswer("");
+    }
+  }, [room.suddenDeath?.active]);
 
   const q = room.questions[room.currentIndex];
   const isFinal = room.currentIndex === 9;
@@ -1610,12 +1628,12 @@ function PlayerView({
           <div className="hr" />
           <input
             className="input"
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
+            value={regularAnswer}
+            onChange={(e) => setRegularAnswer(e.target.value)}
             placeholder="Type your answer"
             onKeyDown={(e) => {
               if (e.key === "Enter" && room.acceptingAnswers) {
-                submitAnswer(roomId, playerId, me?.name || playerName || "Player", room.currentIndex, answer);
+                submitAnswer(roomId, playerId, me?.name || playerName || "Player", room.currentIndex, regularAnswer);
                 setSubmitted(true);
                 showToast("Submitted!", "success");
               }
@@ -1626,7 +1644,7 @@ function PlayerView({
               className="btn"
               disabled={!room.acceptingAnswers}
               onClick={async () => {
-                await submitAnswer(roomId, playerId, me?.name || playerName || "Player", room.currentIndex, answer);
+                await submitAnswer(roomId, playerId, me?.name || playerName || "Player", room.currentIndex, regularAnswer);
                 setSubmitted(true);
                 showToast("Submitted!", "success");
               }}
@@ -1673,8 +1691,8 @@ function PlayerView({
             <div className="hr" />
             <input
               className="input"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
+              value={finalAnswer}
+              onChange={(e) => setFinalAnswer(e.target.value)}
               placeholder="Your final answer"
             />
             <div className="row" style={{ marginTop: 10 }}>
@@ -1682,7 +1700,7 @@ function PlayerView({
                 className="btn"
                 disabled={!room.final.answersOpen}
                 onClick={async () => {
-                  await submitFinalAnswer(roomId, playerId, me?.name || playerName || "Player", answer);
+                  await submitFinalAnswer(roomId, playerId, me?.name || playerName || "Player", finalAnswer);
                   showToast("Final answer submitted!", "success");
                 }}
               >
@@ -1711,8 +1729,8 @@ function PlayerView({
                 <>
                   <input
                     className="input"
-                    value={answer}
-                    onChange={(e) => setAnswer(e.target.value)}
+                    value={suddenDeathAnswer}
+                    onChange={(e) => setSuddenDeathAnswer(e.target.value)}
                     placeholder="Your answer"
                   />
                   <div className="row" style={{ marginTop: 10 }}>
@@ -1720,7 +1738,7 @@ function PlayerView({
                       className="btn"
                       disabled={!room.suddenDeath?.acceptingAnswers}
                       onClick={async () => {
-                        await submitAnswer(roomId, playerId, me?.name || playerName || "Player", 999, answer);
+                        await submitAnswer(roomId, playerId, me?.name || playerName || "Player", 999, suddenDeathAnswer);
                         showToast("Submitted!", "success");
                       }}
                     >

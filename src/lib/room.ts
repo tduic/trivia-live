@@ -205,6 +205,29 @@ export async function resetAllScores(roomId: string, hostSecret: string): Promis
       tx.update(playerRef, { score: 0 });
     }
   });
+
+  // Clear all game data subcollections
+  await clearGameData(roomId);
+}
+
+export async function clearGameData(roomId: string): Promise<void> {
+  // Clear submissions
+  const submissionsSnap = await getDocs(collection(db, "rooms", roomId, "submissions"));
+  for (const docSnap of submissionsSnap.docs) {
+    await deleteDoc(docSnap.ref);
+  }
+
+  // Clear wagers
+  const wagersSnap = await getDocs(collection(db, "rooms", roomId, "wagers"));
+  for (const docSnap of wagersSnap.docs) {
+    await deleteDoc(docSnap.ref);
+  }
+
+  // Clear final answers
+  const finalAnswersSnap = await getDocs(collection(db, "rooms", roomId, "finalAnswers"));
+  for (const docSnap of finalAnswersSnap.docs) {
+    await deleteDoc(docSnap.ref);
+  }
 }
 
 export async function getAllPlayers(roomId: string): Promise<Player[]> {

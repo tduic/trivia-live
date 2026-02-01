@@ -40,4 +40,7 @@ lerna-debug.log*
 # Miscellaneous
 .cache/
 *.tgz
+
+# TypeScript
+tsconfig.tsbuildinfo
 tsconfig.tsbuildinfo
