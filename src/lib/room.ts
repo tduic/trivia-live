@@ -58,7 +58,8 @@ export function subscribeSubmissions(roomId: string, questionIndex: number, cb: 
   const q = query(collection(db, "rooms", roomId, "submissions"), orderBy("createdAt", "asc"));
   return onSnapshot(q, (snap) => {
     const subsAll = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })) as Submission[];
-    cb(subsAll.filter((s) => s.questionIndex === questionIndex));
+    // Pass -1 to get all submissions (for player history)
+    cb(questionIndex === -1 ? subsAll : subsAll.filter((s) => s.questionIndex === questionIndex));
   });
 }
 

@@ -5,7 +5,7 @@ A free-to-run, host-controlled trivia game:
 - Players answer on their phones
 - Host marks Correct/Incorrect (1 point each)
 - Q10 is **Final Jeopardy**: players wager up to their current score
-- Host can **Generate Game** (10 medium Qs) via the OpenAI API, then edit/replace questions
+- Host can **Generate Game** (10 medium Qs) via the Anthropic Claude API, then edit/replace questions
 
 ## 1) Local Run ("download + press run")
 
@@ -23,10 +23,10 @@ Open the URL shown in your terminal.
 3. Paste `FIRESTORE_RULES.txt` into Firestore Rules
 4. Create a **Web app** in Firebase and copy its config into `.env.local` (start from `.env.local.example`)
 
-### OpenAI API
-Create an OpenAI API key and set it as `OPENAI_API_KEY` in `.env.local`.
+### Anthropic API
+Create an Anthropic API key and set it as `ANTHROPIC_API_KEY` in `.env.local`.
 
-**Important:** keep your API key server-side only (never expose it in browser code). The OpenAI docs recommend loading it from an environment variable. 
+**Important:** keep your API key server-side only (never expose it in browser code).
 
 ## 3) Deploy for free (Vercel)
 1. Push this folder to GitHub
@@ -36,7 +36,7 @@ Create an OpenAI API key and set it as `OPENAI_API_KEY` in `.env.local`.
 
 ## Host flow
 - Home → **Create New Game (Host)**
-- In the room, click **Generate game** to pull 10 medium questions from OpenAI
+- In the room, click **Generate game** to pull 10 medium questions from Claude
 - Edit/replace any question
 - Click **Reveal & Open Answers** for each question; players submit
 - Mark answers Correct/Incorrect as they arrive

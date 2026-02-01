@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 
 function extractJson(text: string) {
@@ -9,11 +9,11 @@ function extractJson(text: string) {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "OPENAI_API_KEY not set" }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
   }
 
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const body = await req.json().catch(() => ({}));
   const avoid = Array.isArray(body?.avoid) ? body.avoid : [];
@@ -35,32 +35,21 @@ ${avoid.map((q: string) => `- ${q}`).join("\n")}
 Return ONLY valid JSON with this exact shape:
 { "question": { "question": "...", "answer": "...", "category": "..." } }`;
 
-  const modelEnv = String(process.env.OPENAI_MODEL || "");
-  const allowedModels = ["gpt-4o-mini", "gpt-4.1-mini"] as const;
-  const model = (allowedModels as readonly string[]).includes(modelEnv) ? modelEnv : "gpt-4o-mini";
+  const modelEnv = String(process.env.ANTHROPIC_MODEL || "");
+  const allowedModels = ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"] as const;
+  const model = (allowedModels as readonly string[]).includes(modelEnv) ? modelEnv : "claude-sonnet-4-20250514";
 
-  const resp = await client.responses.create({
+  const resp = await client.messages.create({
     model,
-    input: prompt,
-    max_output_tokens: 250
+    max_tokens: 400,
+    messages: [{ role: "user", content: prompt }]
   });
 
-  const text = (resp.output_text || "").trim();
+  const textBlock = resp.content.find(block => block.type === "text");
+  const text = (textBlock && textBlock.type === "text" ? textBlock.text : "").trim();
 
   try {
-    let data: any;
-    if (text) {
-      data = extractJson(text);
-    } else {
-      const firstItem: any = (resp as any).output?.[0]?.content?.[0];
-      if (firstItem?.type === "json" && firstItem.json) {
-        data = firstItem.json;
-      } else if (firstItem?.type === "output_text" && typeof firstItem.text === "string") {
-        data = extractJson(firstItem.text);
-      } else {
-        throw new Error("No JSON found");
-      }
-    }
+    const data = extractJson(text);
     if (!data?.question?.question || !data?.question?.answer) throw new Error("Bad shape");
     return NextResponse.json({ question: data.question });
   } catch (e: any) {
