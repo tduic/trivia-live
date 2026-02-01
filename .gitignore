@@ -41,3 +41,4 @@ lerna-debug.log*
 .cache/
 *.tgz
 tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
