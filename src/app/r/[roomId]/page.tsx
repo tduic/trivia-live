@@ -694,7 +694,7 @@ function SuddenDeathResultsModal({
               setBusy(true);
               try {
                 await resetAllScores(roomId, hostSecret);
-                const res = await fetch("/api/generate", { method: "POST" });
+                const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roomId, hostSecret }) });
                 const data = await res.json();
                 await patchRoomIfHost(roomId, hostSecret, {
                   questions: data.questions,
@@ -838,7 +838,7 @@ function HostView({
   async function generateGame() {
     setBusy(true);
     try {
-      const res = await fetch("/api/generate", { method: "POST" });
+      const res = await fetch("/api/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roomId, hostSecret }) });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       await patchRoomIfHost(roomId, hostSecret, {
@@ -883,7 +883,7 @@ function HostView({
       const res = await fetch("/api/replace", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ index: idx })
+        body: JSON.stringify({ index: idx, roomId, hostSecret })
       });
       const data = await res.json();
       if (data.question) {
@@ -921,7 +921,7 @@ function HostView({
   async function startSuddenDeath() {
     setBusy(true);
     try {
-      const res = await fetch("/api/replace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: 10 }) });
+      const res = await fetch("/api/replace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: 10, roomId, hostSecret }) });
       const data = await res.json();
       if (data.question) {
         await patchRoomIfHost(roomId, hostSecret, {
@@ -945,7 +945,7 @@ function HostView({
   async function replaceSuddenDeathQuestion() {
     setBusy(true);
     try {
-      const res = await fetch("/api/replace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: 10 }) });
+      const res = await fetch("/api/replace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ index: 10, roomId, hostSecret }) });
       const data = await res.json();
       if (data.question) {
         await patchRoomIfHost(roomId, hostSecret, {

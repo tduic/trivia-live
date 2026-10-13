@@ -26,6 +26,8 @@ Open the URL shown in your terminal.
 ### Anthropic API
 Create an Anthropic API key and set it as `ANTHROPIC_API_KEY` in `.env.local`.
 
+Only a room's host can use the AI routes (`/api/generate`, `/api/replace`): the host page sends its room id and host secret, which the server checks against the room in Firestore, and each room gets at most 40 AI calls an hour (80 per IP address). The limits are per server instance, so they're a brake on abuse rather than an exact quota.
+
 **Important:** keep your API key server-side only (never expose it in browser code).
 
 ## 3) Deploy for free (Vercel)

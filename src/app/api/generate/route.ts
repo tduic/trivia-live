@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { guardAi } from "@/lib/aiGuard";
 
 function extractJson(text: string) {
   const start = text.indexOf("{");
@@ -8,10 +9,12 @@ function extractJson(text: string) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
   }
+  const denied = await guardAi(req, await req.json().catch(() => ({})));
+  if (denied) return denied;
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

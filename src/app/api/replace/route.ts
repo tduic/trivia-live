@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
+import { avoidList, guardAi } from "@/lib/aiGuard";
 
 function extractJson(text: string) {
   const start = text.indexOf("{");
@@ -13,10 +14,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 });
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   const body = await req.json().catch(() => ({}));
-  const avoid = Array.isArray(body?.avoid) ? body.avoid : [];
+  const denied = await guardAi(req, body);
+  if (denied) return denied;
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const avoid = avoidList(body?.avoid);
   const isFinale = body?.index === 9; // Question 10 is index 9
 
   const prompt = `Generate ONE trivia question with a short answer.
