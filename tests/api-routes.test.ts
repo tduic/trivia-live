@@ -13,7 +13,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
 
 import { POST as generate } from "@/app/api/generate/route";
 import { POST as replace } from "@/app/api/replace/route";
-import { GET as health } from "@/app/api/health/route";
+import { GET as health, dynamic as healthDynamic } from "@/app/api/health/route";
 
 const textReply = (text: string) => ({ content: [{ type: "text", text }] });
 const tenQuestions = (overrides: Record<number, object> = {}) =>
@@ -120,5 +120,23 @@ describe("GET /api/health", () => {
   it("reports ok", async () => {
     const res = await health();
     expect((await res.json()).ok).toBe(true);
+  });
+
+  it("reports whether the Anthropic key is set, as a boolean only", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY", "sk-ant-secret-value");
+    const res = await health();
+    const text = await res.text();
+    expect(JSON.parse(text)).toEqual({ ok: true, hasAnthropicKey: true });
+    expect(text).not.toContain("sk-ant-secret-value");
+
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
+    vi.stubEnv("OPENAI_API_KEY", "sk-openai");
+    expect(await (await health()).json()).toEqual({ ok: true, hasAnthropicKey: false });
+    vi.unstubAllEnvs();
+  });
+
+  it("is rendered per request, not prerendered at build time", () => {
+    expect(healthDynamic).toBe("force-dynamic");
   });
 });
