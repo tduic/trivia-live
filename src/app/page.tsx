@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { randomCode } from "@/lib/util";
-import { createRoom } from "@/lib/room";
+
+// Firestore (via @/lib/room) is only needed once "Create Room" is clicked, so
+// it is split out of this page's first-load bundle and warmed after mount.
+const loadRoom = () => import("@/lib/room");
 
 function useTheme() {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
@@ -32,6 +35,10 @@ export default function HomePage() {
   const [joinCode, setJoinCode] = useState("");
   const [creating, setCreating] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    loadRoom().catch(() => {});
+  }, []);
 
   return (
     <div style={{ minHeight: "100vh", padding: 20 }}>
@@ -71,6 +78,7 @@ export default function HomePage() {
                 setCreating(true);
                 try {
                   const roomId = randomCode(6);
+                  const { createRoom } = await loadRoom();
                   const { hostSecret } = await createRoom(roomId, title);
                   router.push(`/r/${roomId}?host=${hostSecret}`);
                 } catch (err) {
