@@ -14,15 +14,15 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "jsx": "preserve",
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "incremental": true,
     "esModuleInterop": true,
     "isolatedModules": true,
+    "noUncheckedSideEffectImports": false,
     "plugins": [
       {
         "name": "next"
